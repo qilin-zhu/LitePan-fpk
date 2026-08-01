@@ -1,0 +1,75 @@
+[
+  {
+    "stepTitle": "默认配置设置",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "请设置应用端口和strm本地储存路径，安装完成后可在应用设置中修改。"
+      },
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "安装完成后修改方法：\n1. 先修改LitePan后台的端口设置\n2. 再到应用中心 → LitePan → 应用设置中最底下编辑按钮修改对应端口和strm路径"
+      },
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口号设置",
+        "rules": [
+          {
+            "required": true,
+            "message": "端口号不能为空"
+          }
+        ],
+        "options": [],
+        "placeholder": "默认端口5211",
+        "initValue": "5211"
+      },
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "默认端口5211，安装完成后,先修改LitePan后台的端口设置,然后在修改应用中心→LitePan→应用设置中修改"
+      },
+      {
+        "type": "text",
+        "field": "strm",
+        "label": "strm本地储存路径",
+        "rules": [
+          {
+            "required": true,
+            "message": "访问路径不能为空"
+          }
+        ],
+        "options": [],
+        "placeholder": "应用安装后，需要到应用设置里添加路径的权限",
+        "initValue": "/vol1/1000/strm"
+      },
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "⚠️ 注意：应用安装后，第一次运行不能启动，需要到应用设置里添加strm路径权限才能启动"
+      },
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "📌 修改方法：\n1. 先修改LitePan后台的配置\n2. 再到应用中心→LitePan→应用设置中修改对应设置\n3. 文件权限添加刚才修改的路径"
+      }
+    ]
+  }
+]

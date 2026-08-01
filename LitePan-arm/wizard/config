@@ -1,0 +1,78 @@
+[
+  {
+    "stepTitle": "应用端口配置",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "安装前，请设置未被占用的端口"
+      },
+      {
+        "type": "text",
+        "field": "port",
+        "label": "访问端口默认5211",
+        "rules": [
+          {
+            "required": true,
+            "message": "设置自己想要的端口"
+          }
+        ],
+        "options": []
+      }
+    ]
+  },
+  {
+    "stepTitle": "strm本地储存路径",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "修改后，也需要到应用设置里添加路径的权限"
+      },
+      {
+        "type": "text",
+        "field": "strm",
+        "label": "设置strm本地储存路径，例如/vol1/1000/strm",
+        "rules": [
+          {
+            "required": true,
+            "message": "strm本地储存路径"
+          }
+        ],
+        "options": []
+      }
+    ]
+  },
+  {
+    "stepTitle": "挂载根目录",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "如果想要挂载网盘，请修改此处目录"
+      },
+      {
+        "type": "text",
+        "field": "mount_root",
+        "label": "挂载根目录",
+        "value": "/app/mounts",
+        "rules": [
+          {
+            "required": true,
+            "message": "挂载根目录"
+          }
+        ],
+        "options": []
+      }
+    ]
+  }
+]

@@ -1,0 +1,136 @@
+#!/bin/bash
+# config_callback - 更新配置文件中的 port、strm 和 mount_root
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+CFG_FILE="${TRIM_PKGVAR}/data/config.json"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+# 更新配置（port、strm 和 mount_root）
+update_config() {
+    local new_port=$1
+    local new_strm=$2
+    local new_mount_root=$3
+
+    # 校验 port
+    if [ -z "$new_port" ]; then
+        log_msg "错误: 未提供 port 值"
+        return 1
+    fi
+    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [ "$new_port" -lt 1 ] || [ "$new_port" -gt 65535 ]; then
+        log_msg "错误: 无效端口号 '$new_port'"
+        return 1
+    fi
+
+    # 校验 strm（非空即可）
+    if [ -z "$new_strm" ]; then
+        log_msg "错误: 未提供 strm 值"
+        return 1
+    fi
+
+    # 校验 mount_root（非空即可）
+    if [ -z "$new_mount_root" ]; then
+        new_mount_root="/app/mounts"
+    fi
+
+    mkdir -p "$(dirname "$CFG_FILE")"
+
+    # 使用 jq 更新（推荐）
+    if command -v jq >/dev/null 2>&1; then
+        if [ ! -f "$CFG_FILE" ]; then
+            # 创建新配置文件，包含 port、strm、mount_root 和默认 scheme
+            jq -n --argjson port "$new_port" --arg strm "$new_strm" --arg mount_root "$new_mount_root" '{
+                "port": $port,
+                "strm": $strm,
+                "mount_root": $mount_root,
+                "scheme": {
+                    "address": "0.0.0.0",
+                    "http_port": $port,
+                    "https_port": -1,
+                    "force_https": false
+                }
+            }' > "$CFG_FILE"
+        else
+            # 更新现有配置：保留其他字段，只更新 port、strm 和 mount_root
+            jq --argjson port "$new_port" --arg strm "$new_strm" --arg mount_root "$new_mount_root" '
+                .port = $port |
+                .strm = $strm |
+                .mount_root = $mount_root |
+                if has("scheme") then
+                    .scheme.http_port = $port
+                else
+                    .scheme = {
+                        "address": "0.0.0.0",
+                        "http_port": $port,
+                        "https_port": -1,
+                        "force_https": false
+                    }
+                end
+            ' "$CFG_FILE" > "${CFG_FILE}.tmp" && mv "${CFG_FILE}.tmp" "$CFG_FILE"
+        fi
+    else
+        # 无 jq 时完全覆盖（注意：会丢失原有其他字段）
+        log_msg "警告: jq 未安装，将覆盖整个配置文件"
+        cat > "$CFG_FILE" << EOF
+{
+    "port": ${new_port},
+    "strm": "${new_strm}",
+    "mount_root": "${new_mount_root}",
+    "scheme": {
+        "address": "0.0.0.0",
+        "http_port": ${new_port},
+        "https_port": -1,
+        "force_https": false
+    }
+}
+EOF
+    fi
+
+    return 0
+}
+
+# 主逻辑
+main() {
+    local new_port=""
+    local new_strm=""
+    local new_mount_root=""
+
+    # 从环境变量读取 port
+    if [ -n "$port" ] && [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
+        new_port="$port"
+    else
+        log_msg "错误: 环境变量 port 无效或缺失"
+        return 1
+    fi
+
+    # 从环境变量读取 strm
+    if [ -n "$strm" ]; then
+        new_strm="$strm"
+    else
+        log_msg "错误: 环境变量 strm 为空"
+        return 1
+    fi
+
+    # 从环境变量读取 mount_root，默认 /app/mounts
+    if [ -n "$mount_root" ]; then
+        new_mount_root="$mount_root"
+    else
+        new_mount_root="/app/mounts"
+        log_msg "mount_root 未设置，使用默认值: ${new_mount_root}"
+    fi
+
+    if update_config "$new_port" "$new_strm" "$new_mount_root"; then
+        log_msg "配置更新: port=${new_port}, strm=${new_strm}, mount_root=${new_mount_root}"
+        echo "端口已更新为 ${new_port}"
+        echo "数据目录已更新为 ${new_strm}"
+        echo "挂载根目录已更新为 ${new_mount_root}"
+        return 0
+    else
+        log_msg "配置更新失败"
+        return 1
+    fi
+}
+
+main "$@"

@@ -1,0 +1,7 @@
+{
+  "username": "LitePan",
+  "groupname": "LitePan",
+  "defaults": {
+    "run-as": "root"
+  }
+}

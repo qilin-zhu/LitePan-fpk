@@ -1,0 +1,53 @@
+{
+  "schema_version": "2.0",
+  "source_info": {
+    "name": "LitePan应用源",
+    "author": "qilinzhu",
+    "homepage": "https://github.com/qilin-zhu/LitePan-fpk",
+    "description": "LitePan fnOS 应用源",
+    "updated_at": "2026-08-01T00:00:00+08:00"
+  },
+  "apps": {
+    "LitePan": {
+      "display_name": "LitePan",
+      "desc": "LitePan是一个专注影音功能的网盘聚合工具，主要功能包括：聚合挂载、STRM刮削、目录整理、缓存管理与自动联动等，让网盘资源更顺畅地进入你的媒体库。默认账号密码admin",
+      "platform": ["x86", "arm"],
+      "categories": ["影音娱乐"],
+      "icon_url": "./LitePan/ICON.PNG",
+      "preview_urls": [
+        "./LitePan/Preview/1.png"
+      ],
+      "readme_url": "./LitePan/README.md",
+      "homepage": "https://github.com/Ponphil/LitePan",
+      "repo_url": "https://github.com/qilin-zhu/LitePan-fpk",
+      "bug_report_url": "https://github.com/qilin-zhu/LitePan-fpk/issues",
+      "maintainer": "qilinzhu",
+      "maintainer_url": "https://github.com/qilin-zhu",
+      "distributor": "qilinzhu",
+      "distributor_url": "https://github.com/qilin-zhu",
+      "run_as": "package",
+      "install_type": "",
+      "is_docker": false,
+      "service_port": "5211",
+      "releases": {
+        "0.4.4": {
+          "changelog": "同步更新版本",
+          "updated_at": "2026-08-01T00:00:00+08:00",
+          "os_min_version": "1.1.8",
+          "packages": {
+            "x86": {
+              "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.4-fpk-1/LitePan_x86_0.4.4.fpk",
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "size": 1
+            },
+            "arm": {
+              "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.4-fpk-1/LitePan_arm_0.4.4.fpk",
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "size": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

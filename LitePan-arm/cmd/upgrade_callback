@@ -1,0 +1,117 @@
+#!/bin/bash
+# upgrade_callback - 升级时更新配置文件中的 port 和 strm
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+CFG_FILE="${TRIM_PKGVAR}/data/config.json"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+# 更新配置（同时写入 port 和 strm）
+update_config() {
+    local new_port=$1
+    local new_strm=$2
+
+    # 校验 port
+    if [ -z "$new_port" ]; then
+        log_msg "错误: 未提供 port 值"
+        return 1
+    fi
+    if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [ "$new_port" -lt 1 ] || [ "$new_port" -gt 65535 ]; then
+        log_msg "错误: 无效端口号 '$new_port'"
+        return 1
+    fi
+
+    # 校验 strm（非空即可）
+    if [ -z "$new_strm" ]; then
+        log_msg "错误: 未提供 strm 值"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$CFG_FILE")"
+
+    # 使用 jq 更新（推荐）
+    if command -v jq >/dev/null 2>&1; then
+        if [ ! -f "$CFG_FILE" ]; then
+            # 创建新配置文件，包含 port、strm 和默认 scheme
+            jq -n --argjson port "$new_port" --arg strm "$new_strm" '{
+                "port": $port,
+                "strm": $strm,
+                "scheme": {
+                    "address": "0.0.0.0",
+                    "http_port": $port,
+                    "https_port": -1,
+                    "force_https": false
+                }
+            }' > "$CFG_FILE"
+        else
+            # 更新现有配置：保留其他字段，只更新 port 和 strm
+            jq --argjson port "$new_port" --arg strm "$new_strm" '
+                .port = $port |
+                .strm = $strm |
+                if has("scheme") then
+                    .scheme.http_port = $port
+                else
+                    .scheme = {
+                        "address": "0.0.0.0",
+                        "http_port": $port,
+                        "https_port": -1,
+                        "force_https": false
+                    }
+                end
+            ' "$CFG_FILE" > "${CFG_FILE}.tmp" && mv "${CFG_FILE}.tmp" "$CFG_FILE"
+        fi
+    else
+        # 无 jq 时完全覆盖（警告）
+        log_msg "警告: jq 未安装，将覆盖整个配置文件"
+        cat > "$CFG_FILE" << EOF
+{
+    "port": ${new_port},
+    "strm": "${new_strm}",
+    "scheme": {
+        "address": "0.0.0.0",
+        "http_port": ${new_port},
+        "https_port": -1,
+        "force_https": false
+    }
+}
+EOF
+    fi
+
+    return 0
+}
+
+# 主逻辑
+main() {
+    local new_port=""
+    local new_strm=""
+
+    # 从环境变量读取 port
+    if [ -n "$port" ] && [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
+        new_port="$port"
+    else
+        log_msg "错误: 环境变量 port 无效或缺失"
+        return 1
+    fi
+
+    # 从环境变量读取 strm
+    if [ -n "$strm" ]; then
+        new_strm="$strm"
+    else
+        log_msg "错误: 环境变量 strm 为空"
+        return 1
+    fi
+
+    if update_config "$new_port" "$new_strm"; then
+        log_msg "配置更新: port=${new_port}, strm=${new_strm}"
+        echo "端口已更新为 ${new_port}"
+        echo "数据目录已更新为 ${new_strm}"
+        return 0
+    else
+        log_msg "配置更新失败"
+        return 1
+    fi
+}
+
+main "$@"
