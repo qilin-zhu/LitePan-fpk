@@ -1,0 +1,160 @@
+#!/bin/bash
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+CONFIG_FILE="${TRIM_PKGVAR}/data/config.json"
+
+# 日志函数
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+# 确保配置文件存在并加载 port、strm 和 mount_root
+load_config() {
+    mkdir -p "$(dirname "${CONFIG_FILE}")"
+
+    # 如果配置文件不存在，创建默认配置
+    if [ ! -f "${CONFIG_FILE}" ]; then
+        local default_port="${port:-5211}"
+        local default_strm="${strm:-${TRIM_APPDEST_VOL}/@appshare/${TRIM_APPNAME}/strm}"
+        local default_mount_root="${mount_root:-/app/mounts}"
+        if command -v jq >/dev/null 2>&1; then
+            jq -n --argjson port "${default_port}" --arg strm "${default_strm}" --arg mount_root "${default_mount_root}" \
+                '{"port": $port, "strm": $strm, "mount_root": $mount_root}' > "${CONFIG_FILE}"
+        else
+            cat > "${CONFIG_FILE}" <<EOF
+{
+    "port": ${default_port},
+    "strm": "${default_strm}",
+    "mount_root": "${default_mount_root}"
+}
+EOF
+        fi
+        log_msg "Created default config file (port=${default_port}, strm=${default_strm}, mount_root=${default_mount_root})"
+    fi
+
+    # 从配置文件读取 port、strm 和 mount_root
+    if command -v jq >/dev/null 2>&1; then
+        CFG_PORT=$(jq -r '.port' "${CONFIG_FILE}" 2>/dev/null)
+        CFG_STRM=$(jq -r '.strm' "${CONFIG_FILE}" 2>/dev/null)
+        CFG_MOUNT_ROOT=$(jq -r '.mount_root' "${CONFIG_FILE}" 2>/dev/null)
+        # 若字段缺失或为 null，则回退至环境变量或默认值
+        [ -z "${CFG_PORT}" ] || [ "${CFG_PORT}" = "null" ] && CFG_PORT="${port:-8080}"
+        [ -z "${CFG_STRM}" ] || [ "${CFG_STRM}" = "null" ] && CFG_STRM="${strm:-${TRIM_PKGVAR}/data/strm}"
+        [ -z "${CFG_MOUNT_ROOT}" ] || [ "${CFG_MOUNT_ROOT}" = "null" ] && CFG_MOUNT_ROOT="/app/mounts"
+    else
+        # 无 jq 时用 grep/sed 简单提取（假设 JSON 格式规整）
+        CFG_PORT=$(grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' "${CONFIG_FILE}" | grep -o '[0-9]*$')
+        CFG_STRM=$(grep -o '"strm"[[:space:]]*:[[:space:]]*"[^"]*"' "${CONFIG_FILE}" | sed 's/.*"strm"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        CFG_MOUNT_ROOT=$(grep -o '"mount_root"[[:space:]]*:[[:space:]]*"[^"]*"' "${CONFIG_FILE}" | sed 's/.*"mount_root"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        [ -z "${CFG_PORT}" ] && CFG_PORT="${port:-8080}"
+        [ -z "${CFG_STRM}" ] && CFG_STRM="${strm:-${TRIM_PKGVAR}/data/strm}"
+        [ -z "${CFG_MOUNT_ROOT}" ] && CFG_MOUNT_ROOT="/app/mounts"
+    fi
+
+    # 将读取的值导出为环境变量（可选），供后续使用
+    export PORT="${CFG_PORT}"
+    export STRM="${CFG_STRM}"
+    # MountRoot 优先读取 config.json，没有才按默认 /app/mounts
+    export LITEPAN_MOUNT_ROOT="${CFG_MOUNT_ROOT}"
+}
+
+# 检查进程是否存在（通过 PID）
+check_process() {
+    local pid=$1
+    kill -0 "${pid}" 2>/dev/null
+}
+
+# 查询运行状态
+status() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then
+            return 0
+        else
+            rm -f "${PID_FILE}"
+        fi
+    fi
+    return 1
+}
+
+# 启动进程
+start_process() {
+    if status; then
+        return 0
+    fi
+
+    # 加载配置（若不存在则创建）
+    load_config
+
+    log_msg "Starting process with port=${CFG_PORT}, strm=${CFG_STRM}, mount_root=${CFG_MOUNT_ROOT} ..."
+
+    # 直接启动后台进程，无需 bash -c
+    "${TRIM_APPDEST}/bin/litepan" \
+        -listen ":${CFG_PORT}" \
+        -data-dir "${TRIM_PKGVAR}/data" \
+        -strm-dir "${CFG_STRM}" \
+        >> "${LOG_FILE}" 2>&1 &
+
+    # 保存 PID
+    printf "%s" "$!" > "${PID_FILE}"
+    log_msg "Process started (PID=$!)"
+    return 0
+}
+
+# 停止进程
+stop_process() {
+    log_msg "Stopping process ..."
+
+    if [ -r "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        log_msg "pid=${pid}"
+
+        if ! check_process "${pid}"; then
+            rm -f "${PID_FILE}"
+            log_msg "Process not running, removed stale PID file"
+            return
+        fi
+
+        log_msg "Sending TERM to PID ${pid}..."
+        kill -TERM "${pid}" >> "${LOG_FILE}" 2>&1
+
+        local count=0
+        while check_process "${pid}" && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+            log_msg "Waiting for termination... (${count}s/10s)"
+        done
+
+        if check_process "${pid}"; then
+            log_msg "Force killing PID ${pid}..."
+            kill -KILL "${pid}"
+            sleep 1
+        else
+            log_msg "Process terminated gracefully."
+        fi
+        rm -f "${PID_FILE}"
+    fi
+
+    return 0
+}
+
+# 命令行入口
+case $1 in
+    start)
+        start_process
+        ;;
+    stop)
+        stop_process
+        ;;
+    status)
+        if status; then
+            exit 0
+        else
+            exit 3
+        fi
+        ;;
+    *)
+        exit 1
+        ;;
+esac
