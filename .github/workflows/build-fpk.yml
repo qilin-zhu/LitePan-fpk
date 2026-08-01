@@ -1,0 +1,113 @@
+name: Build LitePan FPK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GOTOOLCHAIN: auto
+      CGO_ENABLED: '0'
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Clone original LitePan source
+        run: |
+          git clone --depth 1 https://github.com/Ponphil/LitePan.git litepan-src
+
+      - name: Override constants.go with our fork version
+        run: |
+          cp internal/fusemount/constants.go litepan-src/internal/fusemount/constants.go
+
+      - name: Extract version from source
+        id: version
+        run: |
+          RAW_VERSION=$(grep -oP 'AppVersion\s*=\s*"\K[^"]+' litepan-src/internal/httpx/user_agent.go)
+          echo "Raw version: $RAW_VERSION"
+          CLEAN_VERSION=$(echo "$RAW_VERSION" | sed 's/-Beta$//i' | sed 's/^v//')
+          echo "Clean version: $CLEAN_VERSION"
+          echo "version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update manifest version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed -i "s/^version\s*=.*/version               = v${VERSION}/" LitePan-x86/manifest
+          sed -i "s/^version\s*=.*/version               = v${VERSION}/" LitePan-arm/manifest
+          echo "=== LitePan-x86/manifest ==="
+          grep '^version' LitePan-x86/manifest
+          echo "=== LitePan-arm/manifest ==="
+          grep '^version' LitePan-arm/manifest
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: litepan-src/go.sum
+
+      - name: Build amd64 (x86) binary
+        working-directory: litepan-src
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p ../LitePan-x86/app/bin
+          go build -tags fuse -trimpath -ldflags="-s -w" -o ../LitePan-x86/app/bin/litepan ./cmd/litepan
+
+      - name: Build arm64 binary
+        working-directory: litepan-src
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          mkdir -p ../LitePan-arm/app/bin
+          go build -tags fuse -trimpath -ldflags="-s -w" -o ../LitePan-arm/app/bin/litepan ./cmd/litepan
+
+      - name: Install fnpack
+        run: |
+          chmod +x fnpack/fnpack-1.2.3-linux-amd64
+          sudo mv fnpack/fnpack-1.2.3-linux-amd64 /usr/local/bin/fnpack
+          fnpack --version || fnpack --help || true
+
+      - name: Build FPK for x86
+        working-directory: LitePan-x86
+        run: fnpack build
+
+      - name: Build FPK for arm
+        working-directory: LitePan-arm
+        run: fnpack build
+
+      - name: Rename FPK files with version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          OLD_X86=$(find LitePan-x86 -maxdepth 1 -name "*.fpk" | head -1)
+          if [ -n "$OLD_X86" ]; then
+            mv "$OLD_X86" "LitePan-x86/LitePan_x86_${VERSION}.fpk"
+            echo "Renamed -> LitePan_x86_${VERSION}.fpk"
+          fi
+          OLD_ARM=$(find LitePan-arm -maxdepth 1 -name "*.fpk" | head -1)
+          if [ -n "$OLD_ARM" ]; then
+            mv "$OLD_ARM" "LitePan-arm/LitePan_arm_${VERSION}.fpk"
+            echo "Renamed -> LitePan_arm_${VERSION}.fpk"
+          fi
+
+      - name: Show generated files
+        run: |
+          find LitePan-x86 -name "*.fpk" -exec ls -lh {} \;
+          find LitePan-arm -name "*.fpk" -exec ls -lh {} \;
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-fpk-${{ github.run_number }}
+          name: LitePan FPK v${{ steps.version.outputs.version }}
+          files: |
+            LitePan-x86/*.fpk
+            LitePan-arm/*.fpk
