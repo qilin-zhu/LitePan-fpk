@@ -16,10 +16,10 @@
     "changelog": "同步更新版本",
     "arch_diff": {
       "x86": {
-        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.4-fpk-1/LitePan_x86_0.4.4.fpk"
+        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.5-fpk-19/LitePan_x86_0.4.5.fpk"
       },
       "arm": {
-        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.4-fpk-1/LitePan_arm_0.4.4.fpk"
+        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.5-fpk-19/LitePan_arm_0.4.5.fpk"
       }
     }
   }
