@@ -1,0 +1,13 @@
+# Build artifacts
+*.fpk
+dist/
+app/bin/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,5 @@
+chmod +x fnpack-1.2.3-linux-amd64
+sudo mv fnpack-1.2.3-linux-amd64 /usr/local/bin/fnpack
+fnpack build
+
+//最后生成.fpk文件
