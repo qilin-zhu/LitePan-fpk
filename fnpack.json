@@ -1,0 +1,28 @@
+{
+  "LitePan": {
+    "display_name": "LitePan",
+    "desc": "LitePan是一个专注影音功能的网盘聚合工具，主要功能包括：聚合挂载、STRM刮削、目录整理、缓存管理与自动联动等，让网盘资源更顺畅地进入你的媒体库，默认账号密码admin",
+    "labels": "实用效率,备份同步",
+    "platform": [
+      "x86",
+      "arm"
+    ],
+    "version": "v0.4.5",
+    "author": "qilinzhu",
+    "author_url": "https://github.com/qilin-zhu",
+    "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.5-fpk-20/LitePan_x86_0.4.5.fpk",
+    "bug_report_url": "https://github.com/qilin-zhu/LitePan-fpk/issues",
+    "install_type": "存储空间",
+    "size": "12",
+    "history": {},
+    "changelog": "- 更新LitePan版本",
+    "arch_diff": {
+      "x86": {
+        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.5-fpk-20/LitePan_x86_0.4.5.fpk"
+      },
+      "arm": {
+        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.4.5-fpk-20/LitePan_arm_0.4.5.fpk"
+      }
+    }
+  }
+}

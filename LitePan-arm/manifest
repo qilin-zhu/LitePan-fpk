@@ -1,0 +1,16 @@
+appname               = LitePan
+version               = v0.4.4
+display_name          = LitePan
+desc                  = LitePan是一个专注影音功能的网盘聚合工具，主要功能包括：聚合挂载、STRM刮削、目录整理、缓存管理与自动联动等，让网盘资源更顺畅地进入你的媒体库。默认账号密码admin
+platform              = arm
+source                = thirdparty
+source=thirdparty
+maintainer=LitePan
+maintainer_url=https://github.com/Ponphil/LitePan
+distributor=qilinzhu
+distributor_url=https://space.bilibili.com/351478349?spm_id_from=333.1007.0.0
+os_min_version        = 1.1.8
+desktop_uidir         = ui
+changelog             = 第一次发布
+desktop_applaunchname = LitePan.Application
+checksum              = ea3676cf911ee4e4fc2675db757e64fc

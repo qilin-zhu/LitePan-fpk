@@ -1,0 +1,16 @@
+{
+    ".url": {
+        "LitePan.Application": {
+            "title": "LitePan",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "http",
+            "port": "${port}",
+            "url": "/",
+            "allUsers": false
+            "control": {
+            "accessPerm": "editable"
+                    }
+        }
+    }
+}
