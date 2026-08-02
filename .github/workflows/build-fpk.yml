@@ -1,0 +1,290 @@
+name: Build LitePan FPK
+
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    # Daily at 00:00 UTC = 08:00 Beijing time
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  # Job 1: Check if upstream version has changed
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check_version.outputs.should_build }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Extract upstream version
+        id: version
+        run: |
+          # Fetch the version file directly from upstream (lightweight, no full clone)
+          RAW_VERSION=$(curl -sL "https://raw.githubusercontent.com/Ponphil/LitePan/main/internal/httpx/user_agent.go" \
+            | grep -oP 'AppVersion\s*=\s*"\K[^"]+')
+
+          if [ -z "$RAW_VERSION" ]; then
+            echo "ERROR: Failed to fetch upstream version"
+            echo "version=unknown" >> $GITHUB_OUTPUT
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "Raw upstream version: $RAW_VERSION"
+          CLEAN_VERSION=$(echo "$RAW_VERSION" | sed 's/-Beta$//i' | sed 's/^v//')
+          echo "Clean version: $CLEAN_VERSION"
+          echo "version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if version has changed
+        id: check_version
+        run: |
+          # For push and manual dispatch, always build
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "Event: ${{ github.event_name }}, always building"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # For schedule events, compare with current fnpack.json version
+          CURRENT_VERSION=$(jq -r '.LitePan.version // "none"' fnpack.json | sed 's/^v//')
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+
+          echo "Current fnpack.json version: v${CURRENT_VERSION}"
+          echo "Upstream version: v${NEW_VERSION}"
+
+          if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+            echo "Version unchanged (v${NEW_VERSION}), skipping build"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version changed: v${CURRENT_VERSION} -> v${NEW_VERSION}, will build"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+  # Job 2: Build, package, and release (only if version changed or manual trigger)
+  build:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GOTOOLCHAIN: auto
+      CGO_ENABLED: '0'
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Show build info
+        run: |
+          echo "Building LitePan version: v${{ needs.check.outputs.version }}"
+          echo "Triggered by: ${{ github.event_name }}"
+
+      - name: Clone original LitePan source
+        run: |
+          git clone --depth 1 https://github.com/Ponphil/LitePan.git litepan-src
+
+      - name: Override constants.go with our fork version
+        run: |
+          cp internal/fusemount/constants.go litepan-src/internal/fusemount/constants.go
+
+      - name: Verify version matches
+        run: |
+          SOURCE_VERSION=$(grep -oP 'AppVersion\s*=\s*"\K[^"]+' litepan-src/internal/httpx/user_agent.go)
+          echo "Source version: $SOURCE_VERSION"
+          echo "Expected: ${{ needs.check.outputs.version }}"
+
+      - name: Update manifest version
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          sed -i "s/^version\s*=.*/version               = v${VERSION}/" LitePan-x86/manifest
+          sed -i "s/^version\s*=.*/version               = v${VERSION}/" LitePan-arm/manifest
+          echo "=== LitePan-x86/manifest ==="
+          grep '^version' LitePan-x86/manifest
+          echo "=== LitePan-arm/manifest ==="
+          grep '^version' LitePan-arm/manifest
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: litepan-src/go.sum
+
+      - name: Build amd64 (x86) binary
+        working-directory: litepan-src
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p ../LitePan-x86/app/bin
+          go build -tags fuse -trimpath -ldflags="-s -w" -o ../LitePan-x86/app/bin/litepan ./cmd/litepan
+
+      - name: Build arm64 binary
+        working-directory: litepan-src
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          mkdir -p ../LitePan-arm/app/bin
+          go build -tags fuse -trimpath -ldflags="-s -w" -o ../LitePan-arm/app/bin/litepan ./cmd/litepan
+
+      - name: Install fnpack
+        run: |
+          chmod +x fnpack/fnpack-1.2.3-linux-amd64
+          sudo mv fnpack/fnpack-1.2.3-linux-amd64 /usr/local/bin/fnpack
+          fnpack --version || fnpack --help || true
+
+      - name: Build FPK for x86
+        working-directory: LitePan-x86
+        run: fnpack build
+
+      - name: Build FPK for arm
+        working-directory: LitePan-arm
+        run: fnpack build
+
+      - name: Rename FPK files with version
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          OLD_X86=$(find LitePan-x86 -maxdepth 1 -name "*.fpk" | head -1)
+          if [ -n "$OLD_X86" ]; then
+            mv "$OLD_X86" "LitePan-x86/LitePan_x86_${VERSION}.fpk"
+            echo "Renamed -> LitePan_x86_${VERSION}.fpk"
+          fi
+          OLD_ARM=$(find LitePan-arm -maxdepth 1 -name "*.fpk" | head -1)
+          if [ -n "$OLD_ARM" ]; then
+            mv "$OLD_ARM" "LitePan-arm/LitePan_arm_${VERSION}.fpk"
+            echo "Renamed -> LitePan_arm_${VERSION}.fpk"
+          fi
+
+      - name: Show generated files
+        run: |
+          find LitePan-x86 -name "*.fpk" -exec ls -lh {} \;
+          find LitePan-arm -name "*.fpk" -exec ls -lh {} \;
+
+      - name: Create GitHub release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check.outputs.version }}-fpk-${{ github.run_number }}
+          name: LitePan FPK v${{ needs.check.outputs.version }}
+          files: |
+            LitePan-x86/*.fpk
+            LitePan-arm/*.fpk
+
+      - name: Update fnpack.json (this repo)
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          TAG="v${VERSION}-fpk-${RUN_NUMBER}"
+          REPO_URL="https://github.com/qilin-zhu/LitePan-fpk/releases/download/${TAG}"
+          X86_FPK="LitePan_x86_${VERSION}.fpk"
+          ARM_FPK="LitePan_arm_${VERSION}.fpk"
+
+          # Compute FPK file size in MB (x86 as representative)
+          X86_SIZE_BYTES=$(stat -c%s "LitePan-x86/${X86_FPK}" 2>/dev/null || echo 0)
+          SIZE_MB=$(( X86_SIZE_BYTES / 1048576 ))
+          # If less than 1MB, round up to 1
+          [ "$SIZE_MB" -lt 1 ] && SIZE_MB=1
+
+          X86_URL="${REPO_URL}/${X86_FPK}"
+          ARM_URL="${REPO_URL}/${ARM_FPK}"
+
+          echo "Version: v${VERSION}"
+          echo "Tag: ${TAG}"
+          echo "Size: ${SIZE_MB}MB"
+          echo "x86 URL: ${X86_URL}"
+          echo "arm URL: ${ARM_URL}"
+
+          # Update fnpack.json using jq
+          jq \
+            --arg version "v${VERSION}" \
+            --arg size "${SIZE_MB}" \
+            --arg changelog "- 更新LitePan版本" \
+            --arg x86_url "${X86_URL}" \
+            --arg arm_url "${ARM_URL}" \
+            '.LitePan.version = $version |
+             .LitePan.size = $size |
+             .LitePan.changelog = $changelog |
+             .LitePan.download_url = $x86_url |
+             .LitePan.arch_diff.x86.download_url = $x86_url |
+             .LitePan.arch_diff.arm.download_url = $arm_url' \
+            fnpack.json > fnpack.json.tmp && mv fnpack.json.tmp fnpack.json
+
+          echo "=== Updated fnpack.json ==="
+          cat fnpack.json
+
+      - name: Commit and push fnpack.json (this repo)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git diff --staged --quiet || {
+            git commit -m "chore: update fnpack.json to v${{ needs.check.outputs.version }} [skip ci]"
+            git push
+          }
+
+      - name: Sync fnpack.json to FnDepot repo
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+          FNDEPOT_TOKEN: ${{ secrets.FNDEPOT_TOKEN }}
+        run: |
+          if [ -z "$FNDEPOT_TOKEN" ]; then
+            echo "WARNING: FNDEPOT_TOKEN secret is not set, skipping FnDepot sync"
+            exit 0
+          fi
+
+          TAG="v${VERSION}-fpk-${RUN_NUMBER}"
+          REPO_URL="https://github.com/qilin-zhu/LitePan-fpk/releases/download/${TAG}"
+          X86_FPK="LitePan_x86_${VERSION}.fpk"
+          ARM_FPK="LitePan_arm_${VERSION}.fpk"
+
+          # Compute FPK file size in MB
+          X86_SIZE_BYTES=$(stat -c%s "LitePan-x86/${X86_FPK}" 2>/dev/null || echo 0)
+          SIZE_MB=$(( X86_SIZE_BYTES / 1048576 ))
+          [ "$SIZE_MB" -lt 1 ] && SIZE_MB=1
+
+          X86_URL="${REPO_URL}/${X86_FPK}"
+          ARM_URL="${REPO_URL}/${ARM_FPK}"
+
+          # Clone FnDepot repo
+          git clone "https://x-access-token:${FNDEPOT_TOKEN}@github.com/qilin-zhu/FnDepot.git" fndepot-repo
+          cd fndepot-repo
+
+          echo "=== FnDepot fnpack.json before update ==="
+          cat fnpack.json
+
+          # Precisely update only the LitePan section, preserve all other apps
+          jq \
+            --arg version "v${VERSION}" \
+            --arg size "${SIZE_MB}" \
+            --arg changelog "- 更新LitePan版本" \
+            --arg x86_url "${X86_URL}" \
+            --arg arm_url "${ARM_URL}" \
+            '.LitePan.version = $version |
+             .LitePan.size = $size |
+             .LitePan.changelog = $changelog |
+             .LitePan.download_url = $x86_url |
+             .LitePan.arch_diff.x86.download_url = $x86_url |
+             .LitePan.arch_diff.arm.download_url = $arm_url' \
+            fnpack.json > fnpack.json.tmp && mv fnpack.json.tmp fnpack.json
+
+          echo "=== FnDepot fnpack.json after update ==="
+          cat fnpack.json
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git diff --staged --quiet || {
+            git commit -m "chore: sync LitePan to v${VERSION} [skip ci]"
+            git push
+            echo "FnDepot repo updated successfully"
+          } || {
+            echo "No changes to push or push failed"
+          }
