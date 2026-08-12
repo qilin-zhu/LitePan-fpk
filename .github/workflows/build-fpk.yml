@@ -71,7 +71,7 @@ jobs:
     permissions:
       contents: write
     env:
-      GOTOOLCHAIN: local
+      GOTOOLCHAIN: auto
       CGO_ENABLED: '0'
     steps:
       - name: Checkout this repo
@@ -90,14 +90,14 @@ jobs:
         run: |
           cp internal/fusemount/constants.go litepan-src/internal/fusemount/constants.go
 
-      - name: Fix Go version in go.mod (avoid Go 1.26 numeric path issue)
+      - name: Remove non-existent drivers/115 import
         working-directory: litepan-src
         run: |
-          # Go 1.26 rejects package paths with all-numeric segments (e.g. drivers/115)
-          # Downgrade the go directive to 1.24 so GOTOOLCHAIN=local uses Go 1.24
-          sed -i 's/^go 1\.26\.[0-9]*/go 1.24/' go.mod
-          echo "=== go.mod (first 3 lines) ==="
-          head -3 go.mod
+          # Upstream removed drivers/115 directory but all.go still imports it
+          # Remove the import line to fix "package not in std" error
+          sed -i '/litepan\/drivers\/115"/d' drivers/all.go
+          echo "=== drivers/all.go after fix ==="
+          cat drivers/all.go
 
       - name: Verify version matches
         run: |
