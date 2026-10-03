@@ -7,21 +7,21 @@
       "x86",
       "arm"
     ],
-    "version": "v0.5.6",
+    "version": "v0.5.7",
     "author": "qilinzhu",
     "author_url": "https://github.com/qilin-zhu",
-    "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.5.6-fpk-76/LitePan_x86_0.5.6.fpk",
+    "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.5.7-fpk-88/LitePan_x86_0.5.7.fpk",
     "bug_report_url": "https://github.com/qilin-zhu/LitePan-fpk/issues",
     "install_type": "存储空间",
-    "size": "16",
+    "size": "17",
     "history": {},
     "changelog": "- 更新LitePan版本",
     "arch_diff": {
       "x86": {
-        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.5.6-fpk-76/LitePan_x86_0.5.6.fpk"
+        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.5.7-fpk-88/LitePan_x86_0.5.7.fpk"
       },
       "arm": {
-        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.5.6-fpk-76/LitePan_arm_0.5.6.fpk"
+        "download_url": "https://github.com/qilin-zhu/LitePan-fpk/releases/download/v0.5.7-fpk-88/LitePan_arm_0.5.7.fpk"
       }
     }
   }
